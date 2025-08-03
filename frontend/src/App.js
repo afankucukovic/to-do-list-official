@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import axios from "axios";
+import TodoItem from "./components/TodoItem";
+import FilterTabs from "./components/FilterTabs";
+import SearchBar from "./components/SearchBar";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -9,6 +12,8 @@ function App() {
   const [todos, setTodos] = useState([]);
   const [newTodoTitle, setNewTodoTitle] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch todos from backend
   const fetchTodos = async () => {
@@ -54,6 +59,20 @@ function App() {
     }
   };
 
+  // Edit todo
+  const editTodo = async (todoId, newTitle) => {
+    try {
+      const response = await axios.put(`${API}/todos/${todoId}`, {
+        title: newTitle
+      });
+      setTodos(todos.map(todo => 
+        todo.id === todoId ? response.data : todo
+      ));
+    } catch (error) {
+      console.error("Error editing todo:", error);
+    }
+  };
+
   // Delete todo
   const deleteTodo = async (todoId) => {
     try {
@@ -63,6 +82,29 @@ function App() {
       console.error("Error deleting todo:", error);
     }
   };
+
+  // Filter and search todos
+  const getFilteredTodos = () => {
+    let filtered = todos;
+    
+    // Apply status filter
+    if (activeFilter === 'todo') {
+      filtered = filtered.filter(todo => todo.status === 'to do');
+    } else if (activeFilter === 'finished') {
+      filtered = filtered.filter(todo => todo.status === 'finished');
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(todo => 
+        todo.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  };
+
+  const filteredTodos = getFilteredTodos();
 
   // Load todos on component mount
   useEffect(() => {
@@ -129,16 +171,34 @@ function App() {
         <div className="table-container">
           <div className="table-header">
             <h2 className="table-title">Tasks</h2>
+            <div className="table-controls">
+              <SearchBar 
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+              />
+              <FilterTabs 
+                activeFilter={activeFilter}
+                onFilterChange={setActiveFilter}
+                todos={todos}
+              />
+            </div>
           </div>
           
-          {todos.length === 0 ? (
+          {filteredTodos.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <p className="empty-text">No tasks yet. Add your first task to get started!</p>
+              <p className="empty-text">
+                {todos.length === 0 
+                  ? "No tasks yet. Add your first task to get started!" 
+                  : searchTerm 
+                    ? `No tasks found matching "${searchTerm}"`
+                    : `No ${activeFilter === 'todo' ? 'pending' : 'completed'} tasks`
+                }
+              </p>
             </div>
           ) : (
             <div className="table-wrapper">
@@ -152,64 +212,14 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {todos.map((todo) => (
-                    <tr key={todo.id} className={`table-row ${todo.status === "finished" ? "completed-row" : ""}`}>
-                      <td className="task-title">
-                        <span className={`task-text ${todo.status === "finished" ? "completed-text" : ""}`}>
-                          {todo.title}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${todo.status === "finished" ? "status-completed" : "status-todo"}`}>
-                          {todo.status === "finished" ? (
-                            <>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                              Finished
-                            </>
-                          ) : (
-                            <>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                              </svg>
-                              To Do
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="created-date">
-                        {new Date(todo.created_at).toLocaleDateString()}
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            onClick={() => toggleTodoStatus(todo.id, todo.status)}
-                            className="action-button toggle-button"
-                            title={todo.status === "finished" ? "Mark as To Do" : "Mark as Finished"}
-                          >
-                            {todo.status === "finished" ? (
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M3 12L21 12M3 6L21 6M3 18L21 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            ) : (
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => deleteTodo(todo.id)}
-                            className="action-button delete-button"
-                            title="Delete Task"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                  {filteredTodos.map((todo) => (
+                    <TodoItem
+                      key={todo.id}
+                      todo={todo}
+                      onToggle={toggleTodoStatus}
+                      onDelete={deleteTodo}
+                      onEdit={editTodo}
+                    />
                   ))}
                 </tbody>
               </table>
